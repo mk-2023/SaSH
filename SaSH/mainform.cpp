@@ -980,15 +980,15 @@ void MainForm::resetControlTextLanguage()
 	switch (acp)
 	{
 	case 936:
-		translator_.load(R"(translations\qt_zh_CN.qm)");
+		translator_.load(QString("%1/translations/qt_zh_CN.qm").arg(QApplication::applicationDirPath()));
 		break;
 		//English
 	case 950:
-		translator_.load(R"(translations\qt_zh_TW.qm)");
+		translator_.load(QString("%1/translations/qt_zh_TW.qm").arg(QApplication::applicationDirPath()));
 		break;
 		//Chinese
 	default:
-		translator_.load(R"(translations\qt_en_US.qm)");
+		translator_.load(QString("%1/translations/qt_en_US.qm").arg(QApplication::applicationDirPath()));
 		break;
 	}
 #endif

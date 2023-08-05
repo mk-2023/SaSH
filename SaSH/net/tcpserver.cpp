@@ -4196,7 +4196,7 @@ bool Server::login(int s)
 	{
 		if (enableReconnect)
 		{
-			leftDoubleClick(315, 270);
+			leftDoubleClick(316, 264);
 			disconnectflag = true;
 		}
 		return false;
@@ -4211,17 +4211,17 @@ bool Server::login(int s)
 	{
 	case util::kStatusBusy:
 	{
-		leftDoubleClick(315, 255);
+		leftDoubleClick(312, 251);
 		break;
 	}
 	case util::kStatusTimeout:
 	{
-		leftDoubleClick(315, 253);
+		leftDoubleClick(312, 251);
 		break;
 	}
 	case util::kNoUserNameOrPassword:
 	{
-		leftDoubleClick(315, 253);
+		leftDoubleClick(312, 251);
 		break;
 	}
 	case util::kStatusInputUser:
@@ -4238,7 +4238,7 @@ bool Server::login(int s)
 		{
 			mem::writeString(injector.getProcess(), injector.getProcessModule() + kOffestPassword, password);
 		}
-		leftDoubleClick(380, 310);
+		leftDoubleClick(355, 272);
 		break;
 	}
 	case util::kStatusSelectServer:

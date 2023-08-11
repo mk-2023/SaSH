@@ -138,6 +138,16 @@ public:
 
 	inline void setUserData(util::UserData type, const QVariant& data) { userData_hash_.insert(type, QVariant::fromValue(data)); }
 
+	void mouseMove(int x, int y) const;
+
+	void leftClick(int x, int y) const;
+
+	void leftDoubleClick(int x, int y) const;
+
+	void rightClick(int x, int y) const;
+
+	void dragto(int x1, int y1, int x2, int y2) const;
+
 private:
 	static BOOL CALLBACK EnumWindowsCallback(HWND handle, LPARAM lParam)
 	{
@@ -242,7 +252,7 @@ private:
 		//afk->heal combobox
 		{ util::kBattleMagicHealMagicValue, 0 },
 		{ util::kBattleMagicReviveMagicValue, 0 },
-		{ util::kBattleMagicMpMagicValue, 0 },
+		{ util::kBattleSkillMpSkillValue, 0 },
 
 		{ util::kNormalMagicHealMagicValue, 0 },
 
@@ -254,7 +264,7 @@ private:
 		{ util::kBattleItemHealPetValue, 50 },
 		{ util::kBattleItemHealAllieValue, 50 },
 		{ util::kBattleItemHealMpValue, 50 },
-		{ util::kBattleMagicMpValue, 30 },
+		{ util::kBattleSkillMpValue, 30 },
 
 		{ util::kNormalMagicHealCharValue, 50 },
 		{ util::kNormalMagicHealPetValue, 50 },
@@ -360,7 +370,7 @@ private:
 		{ util::kBattleItemHealMpEnable, false },
 		{ util::kBattleMagicReviveEnable, false },
 		{ util::kBattleItemReviveEnable, false },
-		{ util::kBattleMagicMpEnable, false },
+		{ util::kBattleSkillMpEnable, false },
 
 		{ util::kNormalMagicHealEnable, false },
 		{ util::kNormalItemHealEnable, false },

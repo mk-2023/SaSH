@@ -214,7 +214,7 @@ private slots:
 
 
 private:
-	int SaDispatchMessage(char* encoded);
+	int saDispatchMessage(char* encoded);
 
 	void handleData(QTcpSocket* clientSocket, QByteArray data);
 
@@ -234,17 +234,6 @@ public://actions
 	QString getBadStatusString(unsigned int status);
 
 	QString getFieldString(unsigned int field);
-
-	void mouseMove(int x, int y);
-
-	void leftClick(int x, int y);
-
-	void leftDoubleClick(int x, int y);
-
-	void rightClick(int x, int y);
-
-	void dragto(int x1, int y1, int x2, int y2);
-
 
 	void unlockSecurityCode(const QString& code);
 
@@ -393,7 +382,8 @@ public://actions
 		return IS_ONLINE_FLAG.load(std::memory_order_acquire);
 	}
 
-	PC getPC() const { QMutexLocker lock(&pcMutex_); return pc; }
+	PC getPC() const { QMutexLocker lock(&pcMutex_); return pc_; }
+	void setPC(PC pc) { QMutexLocker lock(&pcMutex_); pc_ = pc; }
 
 	void sortItem();
 
@@ -433,10 +423,12 @@ public://actions
 	PARTY getParty(int partyIndex) const { return party[partyIndex]; }
 	ITEM getPetEquip(int petIndex, int equipIndex) const { return pet[petIndex].item[equipIndex]; }
 
+	Q_REQUIRED_RESULT int findInjuriedAllie();
+	void refreshItemInfo();
 private:
 	void setWindowTitle();
 	void refreshItemInfo(int index);
-	void refreshItemInfo();
+
 
 	void setBattleFlag(bool enable);
 	inline void setOnlineFlag(bool enable)
@@ -454,9 +446,6 @@ private:
 	QString getAreaString(int target);
 	Q_REQUIRED_RESULT bool matchPetNameByIndex(int index, const QString& name);
 
-	Q_REQUIRED_RESULT int findInjuriedAllie();
-
-	void checkAutoDropMeat(const QStringList& items);
 
 #pragma region BattleFunctions
 	int playerDoBattleWork();
@@ -506,9 +495,6 @@ private:
 
 #pragma region SAClientOriginal
 	//StoneAge Client Original Functions
-	bool CheckMailNoReadFlag();
-
-	void clearPartyParam();
 
 	void swapItemLocal(int from, int to);
 
@@ -577,15 +563,13 @@ private:
 		//	autoMapSeeFlag = FALSE;
 	}
 
-	void PaletteChange(int palNo, int time);
-
-	void RealTimeToSATime(LSTIME* lstime);
+	void realTimeToSATime(LSTIME* lstime);
 
 	inline void redrawMap(void) { oldGx = -1; oldGy = -1; }
 
 	inline void setPcWarpPoint(const QPoint& pos) { setWarpMap(pos); }
 
-	inline void resetPc(void) { pc.status &= (~CHR_STATUS_LEADER); }
+	inline void resetPc(void) { QMutexLocker lock(&pcMutex_); pc_.status &= (~CHR_STATUS_LEADER); }
 
 	inline void setMap(int floor, const QPoint& pos) { nowFloor = floor; setWarpMap(pos); }
 
@@ -631,15 +615,25 @@ private:
 	}
 
 #ifdef _CHAR_PROFESSION			// WON ADD 人物職業
-	//    #ifdef _GM_IDENTIFY		// Rog ADD GM識別
-	//  void setPcParam(char *name, char *freeName, int level, char *petname, int petlevel, int nameColor, int walk, int height, int profession_class, int profession_level, int profession_exp, int profession_skill_point , char *gm_name);
-	//    void setPcParam(char *name, char *freeName, int level, char *petname, int petlevel, int nameColor, int walk, int height, int profession_class, int profession_level, int profession_skill_point , char *gm_name)   ;
-	//	#else
-	//	void setPcParam(char *name, char *freeName, int level, char *petname, int petlevel, int nameColor, int walk, int height, int profession_class, int profession_level, int profession_exp, int profession_skill_point);
 #ifdef _ALLDOMAN // (不可開) Syu ADD 排行榜NPC
-	void setPcParam(const QString& name, const QString& freeName, int level, const QString& petname, int petlevel, int nameColor, int walk, int height, int profession_class, int profession_level, int profession_skill_point, int herofloor);
+	void setPcParam(const QString& name
+		, const QString& freeName
+		, int level, const QString& petname
+		, int petlevel, int nameColor
+		, int walk, int height
+		, int profession_class
+		, int profession_level
+		, int profession_skill_point
+		, int herofloor);
 #else
-	void setPcParam(const QString& name, const QString& freeName, int level, const QString& petname, int petlevel, int nameColor, int walk, int height, int profession_class, int profession_level, int profession_skill_point);
+	void setPcParam(const QString& name
+		, const QString& freeName
+		, int level, const QString& petname
+		, int petlevel, int nameColor
+		, int walk, int height
+		, int profession_class
+		, int profession_level
+		, int profession_skill_point);
 #endif
 	// 	#endif
 #else
@@ -680,7 +674,8 @@ private:
 	QReadWriteLock pointMutex_;//用於保護人物座標更新順序
 	QMutex swapItemMutex_;//用於保護物品數據更新順序
 	mutable QMutex pcMutex_;//用於保護人物數據更新順序
-	PC pc = {};
+	PC pc_ = {};
+	ITEM pcitem[MAX_ITEM] = {};
 
 	PET pet[MAX_PET] = {};
 
@@ -714,8 +709,6 @@ private:
 	unsigned int ProcNo = 0u;
 	unsigned int SubProcNo = 0u;
 	unsigned int MenuToggleFlag = 0u;
-
-	PALETTE_STATE PalState = {};
 
 	int opp_showindex = 0;
 	QString opp_sockfd;

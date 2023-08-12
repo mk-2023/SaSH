@@ -2884,7 +2884,7 @@ bool Server::login(int s)
 		{
 			mem::writeString(injector.getProcess(), injector.getProcessModule() + kOffestPassword, password);
 		}
-		injector.leftDoubleClick(380, 310);
+		injector.leftDoubleClick(355, 272);
 		break;
 	}
 	case util::kStatusSelectServer:

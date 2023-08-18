@@ -223,7 +223,7 @@ public://actions
 
 	Q_REQUIRED_RESULT int getGameStatus();
 
-	Q_REQUIRED_RESULT bool checkGW(int w, int g);
+	Q_REQUIRED_RESULT bool checkWG(int w, int g);
 
 	Q_REQUIRED_RESULT int getUnloginStatus();
 	void setWorldStatus(int w);
@@ -249,6 +249,21 @@ public://actions
 
 	void announce(const QString& msg, int color = 4);
 
+	void createCharacter(int dataplacenum
+		, const QString& charname
+		, int imgno
+		, int faceimgno
+		, int vit
+		, int str
+		, int tgh
+		, int dex
+		, int earth
+		, int water
+		, int fire
+		, int wind
+		, int hometown);
+
+	void deleteCharacter(int index, const QString securityCode, bool backtofirst = false);
 
 	void talk(const QString& text, int color = 0, TalkMode mode = kTalkNormal);
 	void inputtext(const QString& text, int dialogid = -1, int npcid = -1);
@@ -288,7 +303,7 @@ public://actions
 
 	void createRemoteDialog(int button, const QString& text);
 
-	void mail(int index, const QString& text);
+	void mail(const QVariant& card, const QString& text, int petIndex, const QString& itemName, const QString& itemMemo);
 
 	void warp();
 
@@ -298,6 +313,8 @@ public://actions
 	bool addPoint(int skillid, int amt);
 
 	void pickItem(int dir);
+
+	void dropGold(int gold);
 
 	void depositGold(int gold, bool isPublic);
 	void withdrawGold(int gold, bool isPublic);
@@ -317,6 +334,7 @@ public://actions
 	void setStandbyPet(int standbypets);
 	void setPetState(int petIndex, int state);
 
+	void updateItemByMemory();
 	void updateDatasFromMemory();
 
 	void asyncBattleWork(bool wait);
@@ -358,11 +376,14 @@ public://actions
 
 	bool checkPlayerMp(int cmpvalue, int* target = nullptr, bool useequal = false);
 	bool checkPlayerHp(int cmpvalue, int* target = nullptr, bool useequal = false);
+	bool checkRideHp(int cmpvalue, int* target = nullptr, bool useequal = false);
 	bool checkPetHp(int cmpvalue, int* target = nullptr, bool useequal = false);
 	bool checkPartyHp(int cmpvalue, int* target);
 
 	bool isPetSpotEmpty() const;
 	int checkJobDailyState(const QString& missionName);
+
+	bool isDialogVisible();
 
 	void setPlayerFreeName(const QString& name);
 	void setPetFreeName(int petIndex, const QString& name);
@@ -385,7 +406,7 @@ public://actions
 	PC getPC() const { QMutexLocker lock(&pcMutex_); return pc_; }
 	void setPC(PC pc) { QMutexLocker lock(&pcMutex_); pc_ = pc; }
 
-	void sortItem();
+	void sortItem(bool deepSort = false);
 
 	QPoint getPoint();
 	void setPoint(const QPoint& pos);
@@ -690,6 +711,8 @@ private:
 #endif
 
 	PET_SKILL petSkill[MAX_PET][MAX_SKILL] = {};
+
+	int swapitemModeFlag = 0;
 	//client original
 #pragma region ClientOriginal
 	int  talkMode = 0;						//0:一般 1:密語 2: 隊伍 3:家族 4:職業
@@ -881,7 +904,6 @@ public:
 
 	QElapsedTimer repTimer;
 	util::AfkRecorder recorder[1 + MAX_PET] = {};
-
 
 	dialog_t currentDialog = {};
 

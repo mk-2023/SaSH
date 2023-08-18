@@ -204,10 +204,10 @@ void MainObject::mainProc()
 	QElapsedTimer freeMemTimer; freeMemTimer.start();
 	//首次先釋放一次記憶體，並且開始計時
 	if (injector.getEnableHash(util::kAutoFreeMemoryEnable))
-	{
 		freeMemTimer.restart();
-		mem::freeUnuseMemory(injector.getProcess());
-	}
+
+	mem::freeUnuseMemory(injector.getProcess());
+	mem::freeUnuseMemory(GetCurrentProcess());
 
 	for (;;)
 	{
@@ -238,10 +238,11 @@ void MainObject::mainProc()
 		}
 
 		//自動釋放記憶體
-		if (injector.getEnableHash(util::kAutoFreeMemoryEnable) && freeMemTimer.hasExpired(10ll * 60ll * 1000ll))
+		if (injector.getEnableHash(util::kAutoFreeMemoryEnable) && freeMemTimer.hasExpired(5ll * 60ll * 1000ll))
 		{
 			freeMemTimer.restart();
 			mem::freeUnuseMemory(injector.getProcess());
+			mem::freeUnuseMemory(GetCurrentProcess());
 		}
 		else
 			freeMemTimer.restart();
@@ -427,7 +428,6 @@ int MainObject::checkAndRunFunctions()
 			QString logname = QString("battle_%1_%2_%3").arg(pc.name).arg(pc.freeName).arg(_getpid());
 			injector.server->protoBattleLogName = SPD_INIT(logname);
 		}
-
 		return 1;
 	}
 
@@ -450,6 +450,7 @@ int MainObject::checkAndRunFunctions()
 		{
 			battle_run_once_flag_ = true;
 			emit signalDispatcher.updateStatusLabelTextChanged(util::kLabelStatusInNormal);
+
 		}
 
 		//紀錄NPC
@@ -470,6 +471,7 @@ int MainObject::checkAndRunFunctions()
 		//檢查自動丟棄道具
 		checkAutoDropItems();
 
+		//自動丟/吃肉
 		checkAutoDropMeat(QStringList());
 
 		//檢查自動吃道具
@@ -481,6 +483,7 @@ int MainObject::checkAndRunFunctions()
 		//鎖寵排程
 		checkAutoLockSchedule();
 
+		//自動疊加
 		injector.server->sortItem();
 		return 1;
 	}
@@ -650,7 +653,7 @@ void MainObject::checkControl()
 	if (injector.server.isNull())
 		return;
 
-	//隱藏視窗按下，異步隱藏
+	//隱藏人物按下，異步隱藏
 	bool bChecked = injector.getEnableHash(util::kHideCharacterEnable);
 	if (flagHideCharacterEnable_ != bChecked)
 	{
@@ -758,24 +761,25 @@ void MainObject::checkControl()
 		injector.postMessage(Injector::kEnableOptimize, bChecked, NULL);
 	}
 
-	//同步鎖定移動
-	bChecked = injector.getEnableHash(util::kLockMoveEnable);
-	bool isFastBattle = injector.getEnableHash(util::kFastBattleEnable);
-	if (!bChecked && isFastBattle && injector.server->getBattleFlag())//如果有開啟快速戰鬥，那必須在戰鬥時鎖定移動
-	{
-		flagLockMoveEnable_ = true;
-		injector.sendMessage(Injector::kEnableMoveLock, true, NULL);
-	}
-	else if (!bChecked && isFastBattle && !injector.server->getBattleFlag()) //如果有開啟快速戰鬥，但是不在戰鬥時，那就不鎖定移動
-	{
-		flagLockMoveEnable_ = false;
-		injector.sendMessage(Injector::kEnableMoveLock, false, NULL);
-	}
-	else if (flagLockMoveEnable_ != bChecked) //如果沒有開啟快速戰鬥，那就照常
-	{
-		flagLockMoveEnable_ = bChecked;
-		injector.sendMessage(Injector::kEnableMoveLock, bChecked, NULL);
-	}
+	////同步鎖定移動
+	//bChecked = injector.getEnableHash(util::kLockMoveEnable);
+
+	//bool isFastBattle = injector.getEnableHash(util::kFastBattleEnable);
+	//if (!bChecked && isFastBattle && injector.server->getBattleFlag())//如果有開啟快速戰鬥，那必須在戰鬥時鎖定移動
+	//{
+	//	flagLockMoveEnable_ = true;
+	//	injector.sendMessage(Injector::kEnableMoveLock, true, NULL);
+	//}
+	//else if (!bChecked && isFastBattle && !injector.server->getBattleFlag()) //如果有開啟快速戰鬥，但是不在戰鬥時，那就不鎖定移動
+	//{
+	//	flagLockMoveEnable_ = false;
+	//	injector.sendMessage(Injector::kEnableMoveLock, false, NULL);
+	//}
+	//else if (flagLockMoveEnable_ != bChecked) //如果沒有開啟快速戰鬥，那就照常
+	//{
+	//	flagLockMoveEnable_ = bChecked;
+	//	injector.sendMessage(Injector::kEnableMoveLock, bChecked, NULL);
+	//}
 
 	//自動戰鬥，異步戰鬥面板開關
 	bool bCheckedFastBattle = injector.getEnableHash(util::kFastBattleEnable);
@@ -1004,7 +1008,6 @@ void MainObject::checkAutoWalk()
 
 						//移動
 						injector.server->move(QPoint(x, y));
-						injector.server->move(QPoint(x, y), "gcgc");
 					}
 					else if (enableFastAutoWalk) //快速遇敵 (封包)
 						injector.server->move(QPoint(0, 0), "gcgc");
@@ -1456,12 +1459,17 @@ void MainObject::checkAutoHeal()
 						ok = true;
 						target = 0;
 					}
-					if (!ok && (petPercent > 0) && injector.server->checkPetHp(charPercent))
+					if (!ok && (petPercent > 0) && injector.server->checkPetHp(petPercent))
 					{
 						ok = true;
 						target = injector.server->getPC().battlePetNo + 1;
 					}
-					if (!ok && (alliePercent > 0) && injector.server->checkPartyHp(charPercent, &target))
+					if (!ok && (petPercent > 0) && injector.server->checkRideHp(petPercent))
+					{
+						ok = true;
+						target = injector.server->getPC().ridePetNo + 1;
+					}
+					if (!ok && (alliePercent > 0) && injector.server->checkPartyHp(alliePercent, &target))
 					{
 						ok = true;
 						target += MAX_PET;
@@ -1531,12 +1539,17 @@ void MainObject::checkAutoHeal()
 						ok = true;
 						target = 0;
 					}
-					if (!ok && (petPercent > 0) && injector.server->checkPetHp(charPercent))
+					if (!ok && (petPercent > 0) && injector.server->checkPetHp(petPercent))
 					{
 						ok = true;
 						target = injector.server->getPC().battlePetNo + 1;
 					}
-					if (!ok && (alliePercent > 0) && injector.server->checkPartyHp(charPercent, &target))
+					if (!ok && (petPercent > 0) && injector.server->checkRideHp(petPercent))
+					{
+						ok = true;
+						target = injector.server->getPC().ridePetNo + 1;
+					}
+					if (!ok && (alliePercent > 0) && injector.server->checkPartyHp(alliePercent, &target))
 					{
 						ok = true;
 						target += MAX_PET;
@@ -1718,6 +1731,7 @@ void MainObject::checkAutoLockPet()
 	if (injector.server.isNull())
 		return;
 
+	bool iswait = false;
 	bool enableLockPet = injector.getEnableHash(util::kLockPetEnable) && !injector.getEnableHash(util::kLockPetScheduleEnable);
 	if (enableLockPet)
 	{
@@ -1728,6 +1742,7 @@ void MainObject::checkAutoLockPet()
 			if (pet.state != PetState::kBattle)
 			{
 				injector.server->setPetState(lockPetIndex, kBattle);
+				iswait = true;
 			}
 		}
 	}
@@ -1742,8 +1757,14 @@ void MainObject::checkAutoLockPet()
 			if (pet.state != PetState::kRide)
 			{
 				injector.server->setPetState(lockRideIndex, kRide);
+				iswait = true;
 			}
 		}
+	}
+
+	if (iswait)
+	{
+		QThread::msleep(1000);
 	}
 }
 

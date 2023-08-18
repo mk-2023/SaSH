@@ -24,9 +24,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 //全局關鍵字映射表 這裡是新增新的命令的第一步，其他需要在interpreter.cpp中新增註冊新函數，這裡不添加的話，腳本分析後會忽略未知的命令
 static const QHash<QString, RESERVE> keywords = {
 #pragma region zh_TW
-	//test
-	{ u8"測試", TK_CMD },
-
 	//keyword
 	{ u8"調用", TK_CALL },
 	{ u8"行數", TK_GOTO },
@@ -66,6 +63,8 @@ static const QHash<QString, RESERVE> keywords = {
 	{ u8"儲存設置", TK_CMD },
 	{ u8"計時", TK_CMD },
 	{ u8"菜單", TK_CMD },
+	{ u8"創建人物", TK_CMD },
+	{ u8"刪除人物", TK_CMD },
 
 	//check info
 	{ u8"戰鬥中", TK_CMD },
@@ -118,6 +117,7 @@ static const QHash<QString, RESERVE> keywords = {
 	{ u8"學習", TK_CMD },
 	{ u8"交易", TK_CMD },
 	{ u8"寄信", TK_CMD },
+	{ u8"丟棄石幣", TK_CMD },
 
 	//action with sub cmd
 	{ u8"組隊", TK_CMD },
@@ -145,10 +145,6 @@ static const QHash<QString, RESERVE> keywords = {
 #pragma endregion
 
 #pragma region zh_CN
-
-	//test
-	{ u8"测试", TK_CMD },
-
 	//keyword
 	{ u8"调用", TK_CALL },
 	{ u8"行数", TK_GOTO },
@@ -188,6 +184,8 @@ static const QHash<QString, RESERVE> keywords = {
 	{ u8"储存设置", TK_CMD },
 	{ u8"计时", TK_CMD },
 	{ u8"菜单", TK_CMD },
+	{ u8"创建人物", TK_CMD },
+	{ u8"删除人物", TK_CMD },
 
 	//check info
 	{ u8"战斗中", TK_CMD },
@@ -240,6 +238,7 @@ static const QHash<QString, RESERVE> keywords = {
 	{ u8"学习", TK_CMD },
 	{ u8"交易", TK_CMD },
 	{ u8"寄信", TK_CMD },
+	{ u8"丢弃石币", TK_CMD },
 
 	//action with sub cmd
 	{ u8"组队", TK_CMD },
@@ -311,6 +310,8 @@ static const QHash<QString, RESERVE> keywords = {
 	{ u8"timer", TK_CMD },
 	{ u8"menu", TK_CMD },
 	{ u8"dofile", TK_CMD },
+	{ u8"createch", TK_CMD },
+	{ u8"delch", TK_CMD },
 
 	//check info
 	{ u8"ifbattle", TK_CMD },
@@ -362,6 +363,7 @@ static const QHash<QString, RESERVE> keywords = {
 	{ u8"trade", TK_CMD },
 	{ u8"dostring", TK_CMD },
 	{ u8"mail", TK_CMD },
+	{ u8"doffstone", TK_CMD },
 
 	//action with sub cmd
 	{ u8"join", TK_CMD },
@@ -1075,6 +1077,7 @@ bool Lexer::getStringToken(QString& src, const QString& delim, QString& out)
 	return true;
 }
 
+//檢查指定詞組配對
 void Lexer::checkPairs(const QString& beginstr, const QString& endstr, const QHash<qint64, TokenMap>& stokenmaps)
 {
 	QMap<qint64, QString> unpairedFunctions;
@@ -1088,7 +1091,6 @@ void Lexer::checkPairs(const QString& beginstr, const QString& endstr, const QHa
 	for (auto it = tokenmaps.cbegin(); it != tokenmaps.cend(); ++it)
 	{
 		qint64 row = it.key();
-		//RESERVE type = it.value().value(0).type;
 		QString statement = it.value().value(0).data.toString().simplified();
 
 		if (statement != beginstr && statement != endstr)
@@ -1138,8 +1140,92 @@ void Lexer::checkPairs(const QString& beginstr, const QString& endstr, const QHa
 	}
 }
 
+//檢查單行字符配對
+void Lexer::checkSingleRowPairs(const QString& beginstr, const QString& endstr, const QHash<qint64, TokenMap>& stokenmaps)
+{
+	QMap<qint64, QVector<int>> unpairedFunctions; // <Row, Vector of unpaired start indices>
+	QMap<qint64, QVector<int>> unpairedEnds;      // <Row, Vector of unpaired end indices>
+
+	QMap<qint64, TokenMap> tokenmaps;
+	for (auto it = stokenmaps.cbegin(); it != stokenmaps.cend(); ++it)
+		tokenmaps.insert(it.key(), it.value());
+
+	for (auto it = tokenmaps.cbegin(); it != tokenmaps.cend(); ++it)
+	{
+		qint64 row = it.key();
+		QStringList tmp;
+		for (auto it2 = it.value().cbegin(); it2 != it.value().cend(); ++it2)
+			tmp.append(it2.value().data.toString().simplified());
+
+		QString statement = tmp.join(" ");
+
+
+
+		QVector<int> startIndices;
+		QVector<int> endIndices;
+
+		for (int index = 0; index < statement.length(); ++index)
+		{
+			QChar currentChar = statement.at(index);
+
+			if (currentChar == beginstr)
+			{
+				startIndices.append(index);
+			}
+			else if (currentChar == endstr)
+			{
+				if (!startIndices.isEmpty())
+				{
+					startIndices.removeLast(); // Matched, remove the last start index
+				}
+				else
+				{
+					endIndices.append(index); // Unpaired end index
+				}
+			}
+		}
+
+		// Remaining unpaired start indices are stored as unpairedFunctions
+		unpairedFunctions[row] = startIndices;
+
+		// Remaining unpaired end indices are stored as unpairedEnds
+		unpairedEnds[row] = endIndices;
+	}
+
+	// 打印所有不成對的 beginstr 語句
+	for (auto it = unpairedFunctions.cbegin(); it != unpairedFunctions.cend(); ++it)
+	{
+		qint64 row = it.key();
+		QVector<int> unpairedIndices = it.value();
+
+		for (int index : unpairedIndices)
+		{
+			QString statement = tokenmaps[row].value(0).data.toString().simplified();
+			QString errorMessage = QString(QObject::tr("Unpaired '%1' at row %2, index %3: '%4'")).arg(beginstr).arg(row).arg(index).arg(statement);
+			showError(errorMessage);
+		}
+	}
+
+	// 打印所有不成對的 endstr 語句
+	for (auto it = unpairedEnds.cbegin(); it != unpairedEnds.cend(); ++it)
+	{
+		qint64 row = it.key();
+		QVector<int> unpairedIndices = it.value();
+
+		for (int index : unpairedIndices)
+		{
+			QString statement = tokenmaps[row].value(0).data.toString().simplified();
+			QString errorMessage = QString(QObject::tr("Unpaired '%1' at row %2, index %3: '%4'")).arg(endstr).arg(row).arg(index).arg(statement);
+			showError(errorMessage);
+		}
+	}
+}
+
 void Lexer::checkFunctionPairs(const QHash<qint64, TokenMap>& stokenmaps)
 {
 	checkPairs("function", "end", stokenmaps);
 	checkPairs("for", "endfor", stokenmaps);
+	checkSingleRowPairs("(", ")", stokenmaps);
+	checkSingleRowPairs("[", "]", stokenmaps);
+	checkSingleRowPairs("{", "}", stokenmaps);
 }

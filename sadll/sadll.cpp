@@ -429,6 +429,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, DWORD message, LPARAM wParam, LPARAM lParam)
 		g_GameService.WM_SetOptimize(wParam);
 		return 1;
 	}
+	case kEnableWindowHide:
+	{
+		g_GameService.WM_SetWindowHide(wParam);
+		return 1;
+	}
 	//action
 	case kSendAnnounce://公告
 	{
@@ -514,6 +519,12 @@ extern "C"
 	{
 		GameService& g_GameService = GameService::getInstance();
 		return g_GameService.New_TimeGetTime();
+	}
+
+	void WINAPI New_Sleep(DWORD dwMilliseconds)
+	{
+		GameService& g_GameService = GameService::getInstance();
+		return g_GameService.New_Sleep(dwMilliseconds);
 	}
 
 	/////// game client ///////
@@ -610,6 +621,7 @@ void GameService::initialize(unsigned short port)
 	pGetTickCount = ::GetTickCount;
 	pQueryPerformanceCounter = ::QueryPerformanceCounter;
 	pTimeGetTime = ::timeGetTime;
+	pSleep = ::Sleep;
 
 	//禁止遊戲內切AI SE切AI會崩潰
 	DWORD paddr = CONVERT_GAMEVAR <DWORD>(0x1DF82);
@@ -635,7 +647,7 @@ void GameService::initialize(unsigned short port)
 	//sa_8001.exe+79A14 - E8 5777F8FF           - call sa_8001.exe+1170
 	util::MemoryMove(paddr, "\x90\x90\x90\x90\x90", 5);
 #endif
-	//使遊戲開頭那隻亂竄的寵物不可見
+	////使遊戲開頭那隻亂竄的寵物不可見
 	paddr = CONVERT_GAMEVAR<DWORD>(0x79A19);
 	//sa_8001.exe+79A19 - E8 224A0000           - call sa_8001.exe+7E440
 	util::MemoryMove(paddr, "\x90\x90\x90\x90\x90", 5);
@@ -653,6 +665,7 @@ void GameService::initialize(unsigned short port)
 	DetourAttach(&(PVOID&)pGetTickCount, ::New_GetTickCount);
 	DetourAttach(&(PVOID&)pQueryPerformanceCounter, ::New_QueryPerformanceCounter);
 	DetourAttach(&(PVOID&)pTimeGetTime, ::New_TimeGetTime);
+	DetourAttach(&(PVOID&)pSleep, ::New_Sleep);
 
 	DetourAttach(&(PVOID&)pPlaySound, ::New_PlaySound);
 	DetourAttach(&(PVOID&)pBattleProc, ::New_BattleProc);
@@ -662,6 +675,8 @@ void GameService::initialize(unsigned short port)
 	DetourAttach(&(PVOID&)pLssproto_TK_send, ::New_lssproto_TK_send);
 
 	DetourTransactionCommit();
+
+	WM_SetOptimize(true);
 
 #ifdef USE_ASYNC_TCP
 	if (nullptr == asyncClient_)
@@ -726,6 +741,7 @@ void GameService::uninitialize()
 	DetourDetach(&(PVOID&)pGetTickCount, ::New_GetTickCount);
 	DetourDetach(&(PVOID&)pQueryPerformanceCounter, ::New_QueryPerformanceCounter);
 	DetourDetach(&(PVOID&)pTimeGetTime, ::New_TimeGetTime);
+	DetourDetach(&(PVOID&)pSleep, ::New_Sleep);
 
 	DetourDetach(&(PVOID&)pPlaySound, ::New_PlaySound);
 	DetourDetach(&(PVOID&)pBattleProc, ::New_BattleProc);
@@ -952,6 +968,13 @@ DWORD WINAPI GameService::New_TimeGetTime()
 	return g_dwHookTime;
 }
 
+void WINAPI GameService::New_Sleep(DWORD dwMilliseconds)
+{
+	if (enableSleepAdjust.load(std::memory_order_acquire) && dwMilliseconds == 0)
+		dwMilliseconds = 1;
+
+	pSleep(dwMilliseconds);
+}
 
 //////////////////////////////////////////////////////////////////////
 
@@ -1048,21 +1071,74 @@ void GameService::WM_SetGameStatus(int status)
 //資源優化
 void GameService::WM_SetOptimize(bool enable)
 {
-	DWORD optimizeAddr = CONVERT_GAMEVAR<DWORD>(0x129E9);
+	DWORD optimizeAddr = CONVERT_GAMEVAR<DWORD>(0x129E7);
 	if (!enable)
 	{
 		/*
-		sa_8001.exe+129E9 - A1 0CA95400           - mov eax,[sa_8001.exe+14A90C] { (05205438) }
-		sa_8001.exe+129EE - 6A 00                 - push 00 { 0 }
-		*/
+		//sa_8001.exe+129E9 - A1 0CA95400           - mov eax,[sa_8001.exe+14A90C] { (05205438) }
+		//sa_8001.exe+129EE - 6A 00                 - push 00 { 0 }
 		util::MemoryMove(optimizeAddr, "\xA1\x0C\xA9\x54\x00\x6A\x00", 7);
+
+		//sa_8001.exe+129E7 - 75 37                 - jne sa_8001sf.exe+12A20
+		util::MemoryMove(optimizeAddr, "\x75\x37", 2);
+		*/
+
+		*CONVERT_GAMEVAR<int*>(0xAB7C8) = 14;
 	}
 	else
 	{
 		/*
-		sa_8001.exe+129E9 - EB 10                 - jmp sa_8001.exe+129FB
-		*/
+		//sa_8001.exe+129E9 - EB 10                 - jmp sa_8001.exe+129FB
 		util::MemoryMove(optimizeAddr, "\xEB\x10\x90\x90\x90\x90\x90", 7);
+
+		//sa_8001.exe+129E7 - EB 12                 - jmp sa_8001sf.exe+129FB
+		util::MemoryMove(optimizeAddr, "\xEB\x12", 2);
+		*/
+
+		*CONVERT_GAMEVAR<int*>(0xAB7C8) = 0;
+	}
+}
+
+//隱藏窗口
+void GameService::WM_SetWindowHide(bool enable)
+{
+	if (!enable)
+	{
+		//sa_8001sf.exe+129E7 - 75 37                 - jne sa_8001sf.exe+12A20 資源優化關閉
+		util::MemoryMove(CONVERT_GAMEVAR<DWORD>(0x129E7), "\x75\x37", 2);
+
+		//sa_8001sf.exe+1DFFD - 74 31                 - je sa_8001sf.exe+1E030
+		util::MemoryMove(CONVERT_GAMEVAR<DWORD>(0x1DFFD), "\x74\x31", 2);
+
+		//sa_8001sf.exe+1DEE4 - 83 F9 0E              - cmp ecx,7F { 14 } 加速相關
+		util::MemoryMove(CONVERT_GAMEVAR<DWORD>(0x1DEE4), "\x83\xF9\x0E", 3);
+
+		//Sleep停止更改
+		enableSleepAdjust.store(false, std::memory_order_release);
+
+		//聊天紀錄顯示行數數量
+		nowChatRowCount_ = *CONVERT_GAMEVAR<int*>(0xA2674);
+		if (nowChatRowCount_ == 0)
+			nowChatRowCount_ = 10;
+
+		//聊天紀錄顯示行數數量設為0
+		*CONVERT_GAMEVAR<int*>(0xA2674) = 0;
+	}
+	else
+	{
+		*CONVERT_GAMEVAR<int*>(0xA2674) = nowChatRowCount_; //還原聊天紀錄顯示行數數量
+
+		//sa_8001sf.exe+129E7 - EB 37                 - jmp sa_8001sf.exe+12A20 資源優化開啟
+		util::MemoryMove(CONVERT_GAMEVAR<DWORD>(0x129E7), "\xEB\x37", 2);
+
+		//sa_8001sf.exe+1DFFD - EB 31                 - jmp sa_8001sf.exe+1E030 強制跳過整個背景繪製
+		util::MemoryMove(CONVERT_GAMEVAR<DWORD>(0x1DFFD), "\xEB\x31", 2);
+
+		//sa_8001sf.exe+1DEE4 - 83 F9 0E              - cmp ecx,05 { 14 } 加速相關
+		util::MemoryMove(CONVERT_GAMEVAR<DWORD>(0x1DEE4), "\x83\xF9\x7F", 3);
+
+		//Sleep強制更改
+		enableSleepAdjust.store(true, std::memory_order_release);
 	}
 }
 
@@ -1412,13 +1488,15 @@ void GameService::WM_EnableMoveLock(bool enable)
 		IS_MOVE_LOCK = enable;
 		DWORD* pMoveStart = CONVERT_GAMEVAR<DWORD*>(0x42795 + 0x6);
 		*pMoveStart = !enable ? 1UL : 0UL;
-		if (!enable)
-		{
-			pMoveStart = CONVERT_GAMEVAR<DWORD*>(0x4181198);
-			*pMoveStart = 0UL;
-			pMoveStart = CONVERT_GAMEVAR<DWORD*>(0x41829FC);
-			*pMoveStart = 0UL;
-		}
+
+	}
+
+	if (!enable)
+	{
+		DWORD* pMoveStart = CONVERT_GAMEVAR<DWORD*>(0x4181198);
+		*pMoveStart = 0UL;
+		pMoveStart = CONVERT_GAMEVAR<DWORD*>(0x41829FC);
+		*pMoveStart = 0UL;
 	}
 
 	//DWORD* pMoveLock = CONVERT_GAMEVAR<DWORD*>(0x4275E);

@@ -648,6 +648,8 @@ MainForm::MainForm(QWidget* parent)
 	setAttribute(Qt::WA_StyledBackground, true);
 	setAttribute(Qt::WA_StaticContents, true);
 	setWindowFlags(windowFlags() & ~Qt::WindowMaximizeButtonHint);
+	setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+	setFixedSize(283, 481);
 	setStyleSheet("QMainWindow{ border-radius: 10px; }");
 
 	qRegisterMetaType<QVariant>("QVariant");
@@ -677,6 +679,7 @@ MainForm::MainForm(QWidget* parent)
 		ui.progressBar_pcmp->setType(ProgressBar::kMP);
 		ui.progressBar_pethp->setType(ProgressBar::kHP);
 		ui.progressBar_ridehp->setType(ProgressBar::kHP);
+
 		connect(&signalDispatcher, &SignalDispatcher::updateCharHpProgressValue, ui.progressBar_pchp, &ProgressBar::onCurrentValueChanged);
 		connect(&signalDispatcher, &SignalDispatcher::updateCharMpProgressValue, ui.progressBar_pcmp, &ProgressBar::onCurrentValueChanged);
 		connect(&signalDispatcher, &SignalDispatcher::updatePetHpProgressValue, ui.progressBar_pethp, &ProgressBar::onCurrentValueChanged);
@@ -847,7 +850,7 @@ QQ 群:
 %1
 
 特别感谢:
-eric, 辉, match_stick 热心帮忙测试、查找bug，和给予大量优质的建议
+eric, 辉, match_stick, 手柄, 老花, 小雅 热心帮忙测试、查找bug，和给予大量优质的建议
 )")
 .arg(util::buildDateTime(nullptr)));
 	}

@@ -129,19 +129,22 @@ qint64 Interpreter::press(qint64 currentline, const TokenMap& TK)
 	checkBattleThenWait();
 
 	QString text;
-	checkString(TK, 1, &text);
-
 	qint64 row = 0;
-	checkInteger(TK, 1, &row);
+	if (!checkInteger(TK, 1, &row))
+	{
+		if (!checkString(TK, 1, &text))
+			return Parser::kArgError;
+		if (text.isEmpty())
+			return Parser::kArgError;
+	}
 
 	QString npcName;
 	qint64 npcId = -1;
 	checkString(TK, 2, &npcName);
+
 	mapunit_t unit;
 	if (!npcName.isEmpty() && injector.server->findUnit(npcName, util::OBJ_NPC, &unit))
-	{
 		npcId = unit.id;
-	}
 
 	qint64 dialogid = -1;
 	checkInteger(TK, 3, &dialogid);
@@ -221,7 +224,6 @@ qint64 Interpreter::eo(qint64 currentline, const TokenMap& TK)
 qint64 Interpreter::announce(qint64 currentline, const TokenMap& TK)
 {
 	Injector& injector = Injector::getInstance();
-
 
 	QString text;
 	if (!checkString(TK, 1, &text))
@@ -421,6 +423,178 @@ qint64 Interpreter::logback(qint64 currentline, const TokenMap& TK)
 
 	return Parser::kNoChange;
 }
+
+qint64 Interpreter::createch(qint64 currentline, const TokenMap& TK)
+{
+	Injector& injector = Injector::getInstance();
+	if (injector.server.isNull())
+		return Parser::kError;
+
+	qint64 dataplacenum = -1;
+	if (!checkInteger(TK, 1, &dataplacenum))
+	{
+		QString dataplace;
+		if (!checkString(TK, 1, &dataplace))
+			return Parser::kArgError;
+		if (dataplace == "左")
+			dataplacenum = 0;
+		else if (dataplace == "右")
+			dataplacenum = 1;
+		else
+			return Parser::kArgError;
+	}
+	else
+	{
+		if (dataplacenum != 1 && dataplacenum != 2)
+			return Parser::kArgError;
+		--dataplacenum;
+	}
+
+	QString charname;
+	if (!checkString(TK, 2, &charname))
+		return Parser::kArgError;
+	if (charname.isEmpty())
+		return Parser::kArgError;
+
+	qint64 imgno = 0;
+	if (!checkInteger(TK, 3, &imgno))
+		imgno = 100050;
+	if (imgno <= 0)
+		imgno = 100050;
+
+	qint64 faceimgno = 0;
+	if (!checkInteger(TK, 4, &faceimgno))
+		faceimgno = 30250;
+	if (faceimgno <= 0)
+		faceimgno = 30250;
+
+	qint64 vit = 0;
+	if (!checkInteger(TK, 5, &vit))
+		return Parser::kArgError;
+	if (vit < 0)
+		return Parser::kArgError;
+
+	qint64 str = 0;
+	if (!checkInteger(TK, 6, &str))
+		return Parser::kArgError;
+	if (str < 0)
+		return Parser::kArgError;
+
+	qint64 tgh = 0;
+	if (!checkInteger(TK, 7, &tgh))
+		return Parser::kArgError;
+	if (tgh < 0)
+		return Parser::kArgError;
+
+	qint64 dex = 0;
+	if (!checkInteger(TK, 8, &dex))
+		return Parser::kArgError;
+	if (dex < 0)
+		return Parser::kArgError;
+
+	if (vit + str + tgh + dex != 20)
+		return Parser::kArgError;
+
+	qint64 earth = 0;
+	if (!checkInteger(TK, 9, &earth))
+		return Parser::kArgError;
+	if (earth < 0)
+		return Parser::kArgError;
+
+	qint64 water = 0;
+	if (!checkInteger(TK, 10, &water))
+		return Parser::kArgError;
+	if (water < 0)
+		return Parser::kArgError;
+
+	qint64 fire = 0;
+	if (!checkInteger(TK, 11, &fire))
+		return Parser::kArgError;
+	if (fire < 0)
+		return Parser::kArgError;
+	qint64 wind = 0;
+	if (!checkInteger(TK, 12, &wind))
+		return Parser::kArgError;
+	if (wind < 0)
+		return Parser::kArgError;
+
+	if (earth + water + fire + wind != 10)
+		return Parser::kArgError;
+
+	qint64 hometown = -1;
+	if (!checkInteger(TK, 13, &hometown))
+	{
+		static const QHash<QString, qint64> hash = {
+			{ "薩姆吉爾",0 }, { "瑪麗娜絲", 1 }, { "加加", 2 }, { "卡魯它那", 3 },
+			{ "萨姆吉尔",0 }, { "玛丽娜丝", 1 }, { "加加", 2 }, { "卡鲁它那", 3 },
+
+			{ "薩姆吉爾村",0 }, { "瑪麗娜絲村", 1 }, { "加加村", 2 }, { "卡魯它那村", 3 },
+			{ "萨姆吉尔村",0 }, { "玛丽娜丝村", 1 }, { "加加村", 2 }, { "卡鲁它那村", 3 },
+		};
+
+		QString hometownstr;
+		if (!checkString(TK, 13, &hometownstr))
+			return Parser::kArgError;
+		if (hometownstr.isEmpty())
+			return Parser::kArgError;
+
+		hometown = hash.value(hometownstr, -1);
+		if (hometown == -1)
+			hometown = 1;
+	}
+	else
+	{
+		return Parser::kArgError;
+		if (hometown <= 0 || hometown > 4)
+			hometown = 1;
+		else
+			--hometown;
+	}
+
+	injector.server->createCharacter(static_cast<int>(dataplacenum)
+		, charname
+		, static_cast<int>(imgno)
+		, static_cast<int>(faceimgno)
+		, static_cast<int>(vit)
+		, static_cast<int>(str)
+		, static_cast<int>(tgh)
+		, static_cast<int>(dex)
+		, static_cast<int>(earth)
+		, static_cast<int>(water)
+		, static_cast<int>(fire)
+		, static_cast<int>(wind)
+		, static_cast<int>(hometown));
+
+	return Parser::kNoChange;
+}
+
+qint64 Interpreter::delch(qint64 currentline, const TokenMap& TK)
+{
+	Injector& injector = Injector::getInstance();
+	if (injector.server.isNull())
+		return Parser::kError;
+
+	qint64 index = -1;
+	if (!checkInteger(TK, 1, &index))
+		return Parser::kArgError;
+	--index;
+	if (index < 0 || index > MAXCHARACTER)
+		return Parser::kArgError;
+
+	QString password;
+	if (!checkString(TK, 2, &password))
+		return Parser::kArgError;
+	if (password.isEmpty())
+		return Parser::kArgError;
+
+	qint64 backtofirst = 0;
+	checkInteger(TK, 3, &backtofirst);
+
+	injector.server->deleteCharacter(index, password, backtofirst > 0);
+
+	return Parser::kNoChange;
+}
+
 
 qint64 Interpreter::cleanchat(qint64 currentline, const TokenMap& TK)
 {
@@ -1379,6 +1553,8 @@ qint64 Interpreter::regex(qint64 currentline, const TokenMap& TK)
 	QString varValue;
 	if (!checkString(TK, 2, &varValue))
 		return Parser::kArgError;
+	if (varValue.isEmpty())
+		return Parser::kArgError;
 
 	QString text;
 	checkString(TK, 3, &text);
@@ -1441,16 +1617,18 @@ qint64 Interpreter::find(qint64 currentline, const TokenMap& TK)
 		return Parser::kArgError;
 
 	QString varValue;
-	if (!checkString(TK, 1, &varValue))
+	if (!checkString(TK, 2, &varValue))
 		return Parser::kArgError;
+	if (varValue.isEmpty())
+		return Parser::kNoChange;
 
 	QString text1;
-	checkString(TK, 2, &text1);
+	checkString(TK, 3, &text1);
 	if (text1.isEmpty())
 		return Parser::kArgError;
 
 	QString text2;
-	checkString(TK, 3, &text2);
+	checkString(TK, 4, &text2);
 
 	//查找 src 中 text1 到 text2 之间的文本 如果 text2 为空 则查找 text1 到行尾的文本
 
@@ -1683,7 +1861,7 @@ qint64 Interpreter::ocr(qint64 currentline, const TokenMap& TK)
 		{
 			if (debugmode == 0)
 				injector.server->inputtext(ret);
-}
+		}
 	}
 #endif
 

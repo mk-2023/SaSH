@@ -977,7 +977,7 @@ enum TalkMode
 #pragma endregion
 
 #pragma region Structs
-
+#pragma pack(4) 
 //typedef struct action
 //{
 //	struct 	action* pPrev, * pNext;			//上一個及下一個action指標
@@ -1203,7 +1203,7 @@ typedef struct tagITEM
 #endif
 
 	//custom
-	int maxPile = -1;
+	int maxStack = -1;
 } ITEM;
 
 typedef struct tagPC
@@ -1482,9 +1482,10 @@ typedef struct tagCHARLISTTABLE
 	int str = 0;
 	int def = 0;
 	int agi = 0;
-	int app = 0;
+	int chasma = 0;
 	int attr[4] = { 0,0,0,0 };
 	int dp = 0;
+	bool valid = false;
 } CHARLISTTABLE;
 #ifdef _AIDENGLU_
 typedef struct
@@ -1650,5 +1651,7 @@ typedef struct currencydata_s
 	int points = 0;        // 積分
 	int VIPPoints = 0;  // 會員點
 } currencydata_t;
+
+#pragma pack()
 
 #pragma endregion

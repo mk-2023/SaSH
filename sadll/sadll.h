@@ -58,6 +58,7 @@ namespace util
 		kSetBlockPacket,
 		kBattleTimeExtend,
 		kEnableOptimize,
+		kEnableWindowHide,
 
 		//Action
 		kSendAnnounce,
@@ -206,6 +207,7 @@ public:
 	void WM_EnableBattleDialog(bool enable);
 	void WM_SetGameStatus(int status);
 	void WM_SetOptimize(bool enable);
+	void WM_SetWindowHide(bool enable);
 
 	void WM_Announce(char* str, int color);
 	void WM_Move(int x, int y);
@@ -246,6 +248,8 @@ public://hook
 
 	DWORD WINAPI New_TimeGetTime();
 
+	void WINAPI New_Sleep(DWORD dwMilliseconds);
+
 	void __cdecl New_PlaySound(int a, int b, int c);
 	void __cdecl New_BattleProc();
 	void __cdecl New_BattleCommandReady();
@@ -275,6 +279,9 @@ public://hook
 
 	using pfnTimeGetTime = DWORD(__stdcall*)();
 	pfnTimeGetTime pTimeGetTime = nullptr;
+
+	using pfnSleep = void(__stdcall*)(DWORD dwMilliseconds);
+	pfnSleep pSleep = nullptr;
 
 	//BOOL WINAPI New_QueryPerformanceCounter(LARGE_INTEGER* lpPerformanceCount);
 	using pfnQueryPerformanceCounter = BOOL(__stdcall*)(LARGE_INTEGER*);
@@ -318,4 +325,6 @@ private:
 	int currentSound_ = 15;
 
 	DWORD speedBoostValue = 1;
+	std::atomic_bool enableSleepAdjust = false;
+	int nowChatRowCount_ = 10;
 };

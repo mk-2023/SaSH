@@ -4777,7 +4777,6 @@ void Server::asyncBattleAction()
 		if (timer.hasExpired(120000))
 		{
 			announce("[async battle] 动作超时 120 秒", 7);
-			return false;
 		}
 
 		return true;

@@ -354,7 +354,7 @@ public://actions
 	void cleanChatHistory();
 	QString getChatHistory(int index);
 
-	bool findUnit(const QString& name, int type, mapunit_t* unit, const QString freename = "", int modelid = -1);
+	bool findUnit(const QString& name, int type, mapunit_t* unit, const QString& freename = "", int modelid = -1);
 
 	void setTeamState(bool join);
 	void kickteam(int n);
@@ -713,6 +713,7 @@ private:
 	PET_SKILL petSkill[MAX_PET][MAX_SKILL] = {};
 
 	int swapitemModeFlag = 0;
+	QHash<QString, bool>itemStackFlagHash = {};
 	//client original
 #pragma region ClientOriginal
 	int  talkMode = 0;						//0:一般 1:密語 2: 隊伍 3:家族 4:職業
@@ -905,7 +906,7 @@ public:
 	QElapsedTimer repTimer;
 	util::AfkRecorder recorder[1 + MAX_PET] = {};
 
-	dialog_t currentDialog = {};
+	util::SafeData<dialog_t> currentDialog = {};
 
 	//用於緩存要發送到UI的數據(開啟子窗口初始化並加載當前最新數據時使用)
 	util::SafeHash<int, QVariant> playerInfoColContents;

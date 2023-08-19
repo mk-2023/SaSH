@@ -1823,22 +1823,38 @@ qint64 Interpreter::mail(qint64, const TokenMap& TK)
 	if (injector.server.isNull())
 		return Parser::kError;
 
-	qint64 addrIndex = 0;
-	checkInteger(TK, 1, &addrIndex);
-	if (addrIndex <= 0 || addrIndex >= MAX_ADR_BOOK)
-		return Parser::kArgError;
-	--addrIndex;
+	QVariant card;
+	QString name;
+	qint64 addrIndex = -1;
+	if (!checkInteger(TK, 1, &addrIndex))
+	{
+		if (!checkString(TK, 1, &name))
+			return Parser::kArgError;
+		if (name.isEmpty())
+			return Parser::kArgError;
+
+		card = name;
+	}
+	else
+	{
+		if (addrIndex <= 0 || addrIndex >= MAX_ADR_BOOK)
+			return Parser::kArgError;
+		--addrIndex;
+
+		card = addrIndex;
+	}
 
 	QString text;
 	checkString(TK, 2, &text);
-	if (text.isEmpty())
-		return Parser::kArgError;
 
 	qint64 petIndex = -1;
 	checkInteger(TK, 3, &petIndex);
-	--petIndex;
-	if (petIndex < 0 || petIndex >= MAX_PET)
-		return Parser::kArgError;
+	if (petIndex != -1)
+	{
+		--petIndex;
+		if (petIndex < 0 || petIndex >= MAX_PET)
+			return Parser::kArgError;
+	}
 
 	QString itemName = "";
 	checkString(TK, 4, &itemName);
@@ -1846,10 +1862,10 @@ qint64 Interpreter::mail(qint64, const TokenMap& TK)
 	QString itemMemo = "";
 	checkString(TK, 5, &itemMemo);
 
-	if (itemMemo.isEmpty() && !itemName.isEmpty())
+	if (petIndex != -1 && itemMemo.isEmpty() && !itemName.isEmpty())
 		return Parser::kArgError;
 
-	injector.server->mail(addrIndex, text, petIndex, itemName, itemMemo);
+	injector.server->mail(card, text, petIndex, itemName, itemMemo);
 
 	return Parser::kNoChange;
 }

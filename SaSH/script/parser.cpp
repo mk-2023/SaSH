@@ -975,16 +975,28 @@ void Parser::replaceSysConstKeyword(QString& expr)
 
 	static const QRegularExpression rexPlayer(R"(char\.(\w+))");
 	const QRegularExpression rexPet(rexStart + rexMiddleStart + rexMiddleMid + rexMEnd + rexExtra);
-	static const QRegularExpression rexItem(R"(item\[(\d+)\]\.(\w+))");
-	rexStart = "item";
-	const QRegularExpression rexItemEx(rexStart + rexMiddleStart + rexMiddleMid + rexMEnd + rexExtra);
-	rexStart = "team";
-	const QRegularExpression rexTeamEx(rexStart + rexMiddleStart + rexMiddleMid + rexMEnd);
-	rexStart = "team";
-	const QRegularExpression rexTeam(rexStart + rexMiddleStart + rexMiddleMid + rexMEnd + rexExtra);
+
 	rexStart = "pet";
 	const QRegularExpression rexPetEx(rexStart + rexMiddleStart + rexMiddleMid + rexMEnd);
+
+	static const QRegularExpression rexItem(R"(item\[(\d+)\]\.(\w+))");
+
+	rexStart = "item";
+	const QRegularExpression rexItemEx(rexStart + rexMiddleStart + rexMiddleMid + rexMEnd + rexExtra);
+
+	rexStart = "team";
+	const QRegularExpression rexTeamEx(rexStart + rexMiddleStart + rexMiddleMid + rexMEnd);
+
+	rexStart = "team";
+	const QRegularExpression rexTeam(rexStart + rexMiddleStart + rexMiddleMid + rexMEnd + rexExtra);
+
 	static const QRegularExpression rexMap(R"(map\.(\w+))");
+
+	rexStart = "card";
+	const QRegularExpression rexCard(rexStart + rexMiddleStart + rexMiddleMid + rexMEnd + rexExtra);
+
+	rexStart = "chat";
+	const QRegularExpression rexChatEx(rexStart + rexMiddleStart + rexMiddleMid + rexMEnd);
 
 	PC _pc = injector.server->getPC();
 
@@ -1444,6 +1456,72 @@ void Parser::replaceSysConstKeyword(QString& expr)
 		}
 
 		expr.replace(QString("map.%1").arg(strType), a.toString());
+	}
+
+	//card\[(?:'([^']*)'|"([^ "]*)"|(\d+))\]\.(\w+)
+	match = rexCard.match(expr);
+	if (match.hasMatch())
+	{
+		QString strIndex = match.captured(1).simplified().toLower();
+		if (strIndex.isEmpty())
+			strIndex = match.captured(2).simplified().toLower();
+		if (strIndex.isEmpty())
+			strIndex = match.captured(3).simplified().toLower();
+		if (strIndex.isEmpty())
+			return;
+
+		QString strType = match.captured(4).simplified().toLower();
+		if (strIndex.isEmpty() || strType.isEmpty())
+			return;
+
+		CompareType cmpType = compareCardTypeMap.value(strType.toLower(), kCompareTypeNone);
+		if (cmpType == kCompareTypeNone)
+			return;
+
+		int index = strIndex.toInt() - 1;
+		if (index < 0 || index > MAX_ADR_BOOK)
+			return;
+
+		switch (cmpType)
+		{
+		case kCardName:
+			a = injector.server->getAddressBook(index).name;
+			break;
+		case kCardOnlineState:
+			a = injector.server->getAddressBook(index).onlineFlag > 0 ? 1 : 0;
+			break;
+		case kCardTurn:
+			a = injector.server->getAddressBook(index).transmigration;
+			break;
+		case kCardDp:
+			a = injector.server->getAddressBook(index).dp;
+			break;
+		case kCardLevel:
+			a = injector.server->getAddressBook(index).level;
+			break;
+		}
+
+		expr.replace(QString("card[%1].%2").arg(strIndex).arg(strType), a.toString());
+	}
+
+	//chat\[(?:'([^']*)'|"([^ "]*)"|(\d+))\]
+	match = rexTeamEx.match(expr);
+	if (match.hasMatch())
+	{
+		QString strIndex = match.captured(1).simplified().toLower();
+		if (strIndex.isEmpty())
+			strIndex = match.captured(2).simplified().toLower();
+		if (strIndex.isEmpty())
+			strIndex = match.captured(3).simplified().toLower();
+		if (strIndex.isEmpty())
+			return;
+
+		int index = strIndex.toInt() - 1;
+		if (index < 0 || index >= MAX_CHAT_HISTORY)
+			return;
+
+		a = injector.server->getChatHistory(index);
+		expr.replace(QString("chat[%1]").arg(strIndex), a.toString());
 	}
 }
 

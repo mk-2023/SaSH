@@ -1111,13 +1111,13 @@ qint64 Interpreter::set(qint64 currentline, const TokenMap& TK)
 		{
 			injector.setEnableHash(util::kAutoBattleEnable, !ok);
 			if (ok)
-				injector.server->asyncBattleWork(false);//async
+				injector.server->doBattleWork(true);//async
 		}
 		else if (type == util::kAutoBattleEnable && ok)
 		{
 			injector.setEnableHash(util::kFastBattleEnable, !ok);
 			if (ok)
-				injector.server->asyncBattleWork(false);//async
+				injector.server->doBattleWork(true);//async
 		}
 		else if (type == util::kAutoWalkEnable && ok)
 			injector.setEnableHash(util::kFastWalkEnable, !ok);
@@ -1761,8 +1761,6 @@ qint64 Interpreter::replace(qint64 currentline, const TokenMap& TK)
 
 	QString replaceText;
 	checkString(TK, 3, &replaceText);
-	if (replaceText.isEmpty())
-		return Parser::kArgError + 3ll;
 
 	bool isrex = false;
 	qint64 n = 0;

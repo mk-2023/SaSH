@@ -337,7 +337,8 @@ public://actions
 	void updateItemByMemory();
 	void updateDatasFromMemory();
 
-	void asyncBattleWork(bool wait);
+	void doBattleWork(bool async);
+	void syncBattleAction();
 	void asyncBattleAction();
 
 	void downloadMap();
@@ -444,6 +445,11 @@ public://actions
 	PARTY getParty(int partyIndex) const { return party[partyIndex]; }
 	ITEM getPetEquip(int petIndex, int equipIndex) const { return pet[petIndex].item[equipIndex]; }
 	ADDRESS_BOOK getAddressBook(int index) const { return addressBook[index]; }
+	battledata_t getBattleData() const
+	{
+		QReadLocker locker(&battleDataLocker);
+		return battleData;
+	}
 
 	Q_REQUIRED_RESULT int findInjuriedAllie();
 	void refreshItemInfo();
@@ -500,12 +506,6 @@ private:
 	bool fixPetTargetBySkillIndex(int skillIndex, int oldtarget, int* target) const;
 	void updateCurrentSideRange(battledata_t& bt);
 	inline bool checkFlagState(int pos);
-
-	battledata_t getBattleData() const
-	{
-		QReadLocker locker(&battleDataLocker);
-		return battleData;
-	}
 
 	void setBattleData(const battledata_t& data)
 	{
@@ -791,7 +791,7 @@ private:
 	int BattleBpFlag = 0;
 	int BattleEscFlag = 0;
 	int BattleMyMp = 0;
-	int BattleAnimFlag = 0;
+	int battleCurrentAnimeFlag = 0;
 	int BattlePetStMenCnt = 0;
 
 	int StatusUpPoint = 0;
@@ -877,7 +877,7 @@ public:
 	QElapsedTimer battleDurationTimer;
 	QElapsedTimer normalDurationTimer;
 
-	int BattleCliTurnNo = 0;
+	int battleCurrentRound = 0;
 	int battle_total_time = 0;
 	int battle_totol = 0;
 

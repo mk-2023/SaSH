@@ -246,11 +246,10 @@ void MainObject::mainProc()
 		}
 
 		//自動釋放記憶體
-		if (injector.getEnableHash(util::kAutoFreeMemoryEnable) && freeMemTimer.hasExpired(5ll * 60ll * 1000ll))
+		if (injector.getEnableHash(util::kAutoFreeMemoryEnable) && freeMemTimer.hasExpired(15ll * 60ll * 1000ll))
 		{
 			freeMemTimer.restart();
 			mem::freeUnuseMemory(injector.getProcess());
-			mem::freeUnuseMemory(GetCurrentProcess());
 		}
 		else
 			freeMemTimer.restart();
@@ -596,6 +595,9 @@ void MainObject::battleTimeThread()
 	SignalDispatcher& signalDispatcher = SignalDispatcher::getInstance();
 	for (;;)
 	{
+		if (isInterruptionRequested())
+			break;
+
 		if (battleTime_future_cancel_flag_.load(std::memory_order_acquire))
 			break;
 
@@ -608,18 +610,14 @@ void MainObject::battleTimeThread()
 		if (!injector.server->getBattleFlag())
 			break;
 
-		if (injector.server->battleDurationTimer.hasExpired(60ll * 1000ll * 5ll))
-		{
-			injector.server->setBattleEnd();
-			injector.server->announce(tr("<error>battle time out"));
+		if (isInterruptionRequested())
 			break;
-		}
 
 		//刷新要顯示的戰鬥時間和相關數據
 		double time = injector.server->battleDurationTimer.elapsed() / 1000.0;
 		QString battle_time_text = QString(tr("%1 count    no %2 round    duration: %3 sec    total time: %4 minues"))
 			.arg(injector.server->battle_totol)
-			.arg(injector.server->BattleCliTurnNo + 1)
+			.arg(injector.server->battleCurrentRound + 1)
 			.arg(QString::number(time, 'f', 3))
 			.arg(injector.server->battle_total_time / 1000 / 60);
 
@@ -1845,8 +1843,6 @@ void MainObject::checkAutoLockSchedule()
 	if (injector.server.isNull())
 		return;
 
-
-
 	auto checkSchedule = [](util::UserSetting set)->bool
 	{
 		static const QHash <QString, PetState> hashType = {
@@ -2005,6 +2001,9 @@ void MainObject::checkAutoLockSchedule()
 void MainObject::checkAutoEatBoostExpItem()
 {
 	Injector& injector = Injector::getInstance();
+	if (isInterruptionRequested())
+		return;
+
 	if (injector.server.isNull())
 		return;
 

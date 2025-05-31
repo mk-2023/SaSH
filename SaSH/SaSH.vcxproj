@@ -112,11 +112,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|Win32'">
     <RunCodeAnalysis>false</RunCodeAnalysis>
     <EnableClangTidyCodeAnalysis>false</EnableClangTidyCodeAnalysis>
-    <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
+    <PostBuildEventUseInBuild>false</PostBuildEventUseInBuild>
     <IntDir>$(SolutionDir)build\$(Configuration)\</IntDir>
     <OutDir>$(SolutionDir)deploy\bin\$(ProjectName)\$(Configuration)\</OutDir>
     <PreBuildEventUseInBuild>false</PreBuildEventUseInBuild>
     <PreLinkEventUseInBuild>false</PreLinkEventUseInBuild>
+    <TargetName>3NZCX3wzTuDmGZwvHadHhCVTWBK5PvbbyUx2GxawmQ6ZNSCaRFSd2Xx9e5pwG35mk6X2nwtPzNXsxrtVtX66x2XW9Z6rDeztZBcqS3YaKKT6r89bUxrAtTrhXU2PnGa2</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <RunCodeAnalysis>false</RunCodeAnalysis>

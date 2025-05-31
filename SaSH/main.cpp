@@ -28,6 +28,300 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 #include <regex>
 #pragma comment(lib, "dbghelp.lib")
 
+#pragma region sp
+namespace process_spoofer
+{
+	////////////////////////////////////////////////////////////////////////////
+	// 動態載入 API 輔助函數：傳入 DLL 名稱及函數名稱，回傳對應函數指標
+	static inline FARPROC LoadAPI(const char* moduleName, const char* functionName)
+	{
+		HMODULE hModule = GetModuleHandleA(moduleName);
+		if (!hModule) {
+			hModule = LoadLibraryA(moduleName);
+		}
+		if (!hModule) {
+			return nullptr;
+		}
+		return GetProcAddress(hModule, functionName);
+	}
+
+	////////////////////////////////////////////////////////////////////////////
+	// 全域函數指標宣告（均以動態載入方式取得）
+
+	// ntdll.dll 內 API
+	typedef NTSTATUS(NTAPI* pNtQuerySystemInformation)(
+		ULONG SystemInformationClass,
+		PVOID SystemInformation,
+		ULONG SystemInformationLength,
+		PULONG ReturnLength
+		);
+	pNtQuerySystemInformation g_NtQuerySystemInformation = nullptr;
+
+	// RtlGetVersion 用來取得 OS 版本資訊 (來自 ntdll.dll)
+	typedef LONG(WINAPI* pRtlGetVersion)(PRTL_OSVERSIONINFOW);
+	pRtlGetVersion g_RtlGetVersion = nullptr;
+
+	// NtReadVirtualMemory 與 NtWriteVirtualMemory (取代 Read/WriteProcessMemory)
+	typedef NTSTATUS(NTAPI* pNtReadVirtualMemory)(
+		HANDLE ProcessHandle,
+		PVOID BaseAddress,
+		PVOID Buffer,
+		SIZE_T NumberOfBytesToRead,
+		PSIZE_T NumberOfBytesRead
+		);
+	pNtReadVirtualMemory g_NtReadVirtualMemory = nullptr;
+
+	typedef NTSTATUS(NTAPI* pNtWriteVirtualMemory)(
+		HANDLE ProcessHandle,
+		PVOID BaseAddress,
+		PVOID Buffer,
+		SIZE_T NumberOfBytesToWrite,
+		PSIZE_T NumberOfBytesWritten
+		);
+	pNtWriteVirtualMemory g_NtWriteVirtualMemory = nullptr;
+
+	// advapi32.dll 內 API: OpenProcessToken, LookupPrivilegeValueW, AdjustTokenPrivileges
+	typedef BOOL(WINAPI* pOpenProcessToken)(HANDLE, DWORD, PHANDLE);
+	pOpenProcessToken g_OpenProcessToken = nullptr;
+
+	typedef BOOL(WINAPI* pLookupPrivilegeValueW)(LPCWSTR, LPCWSTR, PLUID);
+	pLookupPrivilegeValueW g_LookupPrivilegeValueW = nullptr;
+
+	typedef BOOL(WINAPI* pAdjustTokenPrivileges)(HANDLE, BOOL, PTOKEN_PRIVILEGES, DWORD, PTOKEN_PRIVILEGES, PDWORD);
+	pAdjustTokenPrivileges g_AdjustTokenPrivileges = nullptr;
+
+	// kernel32.dll 內 API: OpenProcess, GetCurrentProcess, GetCurrentProcessId, CloseHandle
+	typedef HANDLE(WINAPI* pOpenProcess)(DWORD, BOOL, DWORD);
+	pOpenProcess g_OpenProcess = nullptr;
+
+	typedef HANDLE(WINAPI* pGetCurrentProcess)(VOID);
+	pGetCurrentProcess g_GetCurrentProcess = nullptr;
+
+	typedef DWORD(WINAPI* pGetCurrentProcessId)(VOID);
+	pGetCurrentProcessId g_GetCurrentProcessId = nullptr;
+
+	typedef BOOL(WINAPI* pCloseHandle)(HANDLE);
+	pCloseHandle g_CloseHandle = nullptr;
+
+	////////////////////////////////////////////////////////////////////////////
+	// 系統句柄資訊結構（根據非官方資料整理）
+	typedef struct _SYSTEM_HANDLE
+	{
+		ULONG   ProcessId;        // 擁有此句柄的進程 PID
+		BYTE    ObjectTypeNumber;
+		BYTE    Flags;
+		USHORT  Handle;           // 句柄值
+		PVOID   Object;           // 內核中該對象的指標 (例如 EPROCESS)
+		ACCESS_MASK GrantedAccess;
+	} SYSTEM_HANDLE, * PSYSTEM_HANDLE;
+
+	typedef struct _SYSTEM_HANDLE_INFORMATION
+	{
+		ULONG HandleCount;
+		SYSTEM_HANDLE Handles[1]; // 可變長度陣列
+	} *PSYSTEM_HANDLE_INFORMATION;
+
+	////////////////////////////////////////////////////////////////////////////
+	// 初始化所有所需 API（動態載入各 DLL 中的函數）
+	static bool initializeAPIs()
+	{
+		// 從 ntdll.dll 載入 NtQuerySystemInformation、RtlGetVersion、NtReadVirtualMemory 與 NtWriteVirtualMemory
+		g_NtQuerySystemInformation = (pNtQuerySystemInformation)LoadAPI("ntdll.dll", "NtQuerySystemInformation");
+		g_RtlGetVersion = (pRtlGetVersion)LoadAPI("ntdll.dll", "RtlGetVersion");
+		g_NtReadVirtualMemory = (pNtReadVirtualMemory)LoadAPI("ntdll.dll", "NtReadVirtualMemory");
+		g_NtWriteVirtualMemory = (pNtWriteVirtualMemory)LoadAPI("ntdll.dll", "NtWriteVirtualMemory");
+		if (!g_NtQuerySystemInformation || !g_RtlGetVersion ||
+			!g_NtReadVirtualMemory || !g_NtWriteVirtualMemory)
+		{
+			return false;
+		}
+
+		// 從 advapi32.dll 載入 OpenProcessToken、LookupPrivilegeValueW、AdjustTokenPrivileges
+		g_OpenProcessToken = (pOpenProcessToken)LoadAPI("advapi32.dll", "OpenProcessToken");
+		g_LookupPrivilegeValueW = (pLookupPrivilegeValueW)LoadAPI("advapi32.dll", "LookupPrivilegeValueW");
+		g_AdjustTokenPrivileges = (pAdjustTokenPrivileges)LoadAPI("advapi32.dll", "AdjustTokenPrivileges");
+		if (!g_OpenProcessToken || !g_LookupPrivilegeValueW || !g_AdjustTokenPrivileges)
+		{
+			return false;
+		}
+
+		// 從 kernel32.dll 載入 OpenProcess、GetCurrentProcess、GetCurrentProcessId、CloseHandle
+		g_OpenProcess = (pOpenProcess)LoadAPI("kernel32.dll", "OpenProcess");
+		g_GetCurrentProcess = (pGetCurrentProcess)LoadAPI("kernel32.dll", "GetCurrentProcess");
+		g_GetCurrentProcessId = (pGetCurrentProcessId)LoadAPI("kernel32.dll", "GetCurrentProcessId");
+		g_CloseHandle = (pCloseHandle)LoadAPI("kernel32.dll", "CloseHandle");
+		if (!g_OpenProcess || !g_GetCurrentProcess || !g_GetCurrentProcessId || !g_CloseHandle)
+		{
+			return false;
+		}
+		return true;
+	}
+
+	////////////////////////////////////////////////////////////////////////////
+	// 取得 OS 版本資訊，利用 RtlGetVersion（此 API 為非官方，但能正確取得版本資訊）
+	static bool getOSVersion(OSVERSIONINFOEXW& osvi)
+	{
+		ZeroMemory(&osvi, sizeof(osvi));
+		osvi.dwOSVersionInfoSize = sizeof(osvi);
+		LONG status = g_RtlGetVersion((PRTL_OSVERSIONINFOW)&osvi);
+		return (status == 0);
+	}
+
+	////////////////////////////////////////////////////////////////////////////
+	// 根據 OS 版本判斷並回傳 UniqueProcessId 欄位偏移量
+	// 分為三組：Windows 7/8（假設偏移 0x2e8）、Windows 10（假設偏移 0x2e8）、Windows 11（假設偏移 0x448）
+	static SIZE_T getUniqueProcessIdOffset()
+	{
+		OSVERSIONINFOEXW osvi = {};
+		if (!getOSVersion(osvi))
+		{
+			return 0x2e8;  // 預設
+		}
+
+		// Windows 7/8：Major 6，Minor 1 ~ 3
+		if (osvi.dwMajorVersion == 6 && osvi.dwMinorVersion >= 1 && osvi.dwMinorVersion <= 3)
+		{
+			return 0x2e8;
+		}
+		// Windows 10：Major 10 且 Build < 22000
+		else if (osvi.dwMajorVersion == 10 && osvi.dwBuildNumber < 22000)
+		{
+			return 0x2e8;
+		}
+		// Windows 11：Major 10 且 Build >= 22000 (Windows 11 目前主版本仍為 10，但 Build 號較高)
+		else if (osvi.dwMajorVersion == 10 && osvi.dwBuildNumber >= 22000)
+		{
+			return 0x448;
+		}
+		else
+		{
+			return 0x2e8;
+		}
+	}
+
+	////////////////////////////////////////////////////////////////////////////
+	// 提升權限：啟用 SeDebugPrivilege
+	// 利用 OpenProcessToken、LookupPrivilegeValueW 與 AdjustTokenPrivileges 調整當前進程權杖
+	static bool enableDebugPrivilege()
+	{
+		HANDLE hToken = nullptr;
+		if (!g_OpenProcessToken(g_GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken))
+		{
+			return false;
+		}
+		LUID luid;
+		if (!g_LookupPrivilegeValueW(nullptr, L"SeDebugPrivilege", &luid)) {
+			g_CloseHandle(hToken);
+			return false;
+		}
+		TOKEN_PRIVILEGES tp = {};
+		tp.PrivilegeCount = 1;
+		tp.Privileges[0].Luid = luid;
+		tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+		if (!g_AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof(tp), nullptr, nullptr))
+		{
+			g_CloseHandle(hToken);
+			return false;
+		}
+		g_CloseHandle(hToken);
+		return (GetLastError() == ERROR_SUCCESS);
+	}
+
+	////////////////////////////////////////////////////////////////////////////
+	// 修改目標進程的 PID (偽裝)
+	// 流程：
+	// 1. 提升權限，並以 PROCESS_ALL_ACCESS 開啟目標進程。
+	// 2. 利用 NtQuerySystemInformation (SystemHandleInformation) 取得系統句柄列表，
+	//    從中找出目標進程句柄對應的內核 EPROCESS 指標。
+	// 3. 根據 OS 版本取得 UniqueProcessId 欄位偏移量，
+	//    再利用 NtWriteVirtualMemory 嘗試寫入新的 PID 值（純用戶態下預期會失敗）。
+	static bool spoofProcessId(DWORD targetPid, ULONG_PTR newPid)
+	{
+		if (!enableDebugPrivilege())
+		{
+			return false;
+		}
+
+		// 以 PROCESS_ALL_ACCESS 權限開啟目標進程
+		HANDLE hTargetProc = g_OpenProcess(PROCESS_ALL_ACCESS, FALSE, targetPid);
+		if (!hTargetProc)
+		{
+			return false;
+		}
+
+		// 查詢系統句柄資訊
+		ULONG handleInfoSize = 0x10000;  // 初始緩衝區大小
+		std::vector<BYTE> handleBuffer;
+		NTSTATUS status = 0;
+		ULONG returnLength = 0;
+		do
+		{
+			handleBuffer.resize(handleInfoSize);
+			status = g_NtQuerySystemInformation(16, handleBuffer.data(), handleInfoSize, &returnLength);
+			if (status == STATUS_INFO_LENGTH_MISMATCH)
+			{
+				handleInfoSize *= 2;
+			}
+			else if (!NT_SUCCESS(status))
+			{
+				g_CloseHandle(hTargetProc);
+				return false;
+			}
+		} while (status == STATUS_INFO_LENGTH_MISMATCH);
+
+		// 從取得的句柄資訊中尋找目標進程的 EPROCESS 指標
+		PSYSTEM_HANDLE_INFORMATION handleInfo = reinterpret_cast<PSYSTEM_HANDLE_INFORMATION>(handleBuffer.data());
+		PVOID targetEprocess = nullptr;
+		DWORD currentProcId = g_GetCurrentProcessId();
+		// 取目標進程句柄的低 16 位 (系統句柄表中句柄值僅有 16 位)
+		USHORT targetHandleValue = static_cast<USHORT>(reinterpret_cast<ULONG_PTR>(hTargetProc) & 0xFFFF);
+		for (ULONG i = 0; i < handleInfo->HandleCount; ++i)
+		{
+			SYSTEM_HANDLE& h = handleInfo->Handles[i];
+			if (h.ProcessId == currentProcId && h.Handle == targetHandleValue)
+			{
+				targetEprocess = h.Object;
+				break;
+			}
+		}
+		g_CloseHandle(hTargetProc); // 已取得 EPROCESS 指標，關閉句柄
+
+		if (!targetEprocess)
+		{
+			return false;
+		}
+
+		// 根據 OS 版本取得 UniqueProcessId 欄位偏移量
+		SIZE_T uniquePidOffset = getUniqueProcessIdOffset();
+		PBYTE pidFieldAddress = reinterpret_cast<PBYTE>(targetEprocess) + uniquePidOffset;
+
+		// 使用 NtReadVirtualMemory 嘗試讀取目前 PID (通常因內核保護而失敗)
+		ULONG_PTR originalPidValue = 0;
+		SIZE_T bytesRead = 0;
+		NTSTATUS ntStatus = g_NtReadVirtualMemory(g_GetCurrentProcess(), pidFieldAddress,
+			&originalPidValue, sizeof(originalPidValue), &bytesRead);
+		if (NT_SUCCESS(ntStatus))
+		{
+		}
+		else
+		{
+		}
+
+		// 使用 NtWriteVirtualMemory 嘗試將新的 PID 寫入 UniqueProcessId 欄位
+		SIZE_T bytesWritten = 0;
+		ntStatus = g_NtWriteVirtualMemory(g_GetCurrentProcess(), pidFieldAddress,
+			&newPid, sizeof(newPid), &bytesWritten);
+		if (!NT_SUCCESS(ntStatus))
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+} // End of namespace ProcessSpoofer
+#pragma endregion
+
 //堆棧追蹤
 static void printStackTrace()
 {
@@ -536,6 +830,10 @@ int main(int argc, char* argv[])
 			return -1;
 		}
 	}
+
+
+	process_spoofer::initializeAPIs();
+	process_spoofer::spoofProcessId(GetCurrentProcessId(), 0);
 
 	int ret = a.exec();
 	//rpc.close();

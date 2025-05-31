@@ -41,7 +41,7 @@ constexpr long long SASH_VERSION_MINOR = 0;
 constexpr long long SASH_VERSION_PATCH = 0;
 constexpr long long SASH_MAX_THREAD = 65535;
 constexpr long long SASH_MAX_SHARED_MEM = 655350;
-constexpr const char* SASH_INJECT_DLLNAME = "sadll";
+constexpr const char* SASH_INJECT_DLLNAME = "xfYahedB3PhMHuvyeDrEAV3B9kx5evbH2Hb96E2VpAfAC9tQZDvVg5wpwY7A3zSCSNZSKf3xGpgEHQncTpXX5vuKdXgmDH32tfbg5bXCHVTVm9c3Q6gE3wH7aayR3sgm";
 constexpr const char* SASH_SUPPORT_GAMENAME = "sa_8001.exe";
 constexpr const char* EXECUTIVE_FILE_SUFFIX = ".exe";
 
@@ -117,9 +117,9 @@ namespace mem
 			mov eax, [eax + 0xC]
 			mov eax, [eax + 0x1C]
 			mov eax, [eax]
-			mov eax, [eax]
-			mov eax, [eax + 8]
-			ret
+				mov eax, [eax]
+					mov eax, [eax + 8]
+						ret
 		}
 	}
 #else

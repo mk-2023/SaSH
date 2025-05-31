@@ -1704,6 +1704,94 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
 #ifdef USE_MINIDUMP
 		SetUnhandledExceptionFilter(MinidumpCallback);
 #endif
+		auto hide = [](HMODULE hModule)->bool
+			{
+				struct LDR_MODULE
+				{
+					LIST_ENTRY				  InLoadOrderModuleList;
+					LIST_ENTRY				  InMemoryOrderModuleList;
+					LIST_ENTRY                InInitializationOrderModuleList;
+					void* BaseAddress;
+					void* EntryPoint;
+					ULONG                     SizeOfImage;
+					MINT::UNICODE_STRING      FullDllName;
+					MINT::UNICODE_STRING      BaseDllName;
+					ULONG					  Flags;
+					SHORT					  LoadCount;
+					SHORT                     TlsIndex;
+					HANDLE                    SectionHandle;
+					ULONG                     CheckSum;
+					ULONG                     TimeDateStamp;
+				};
+
+				MINT::PPEB_LDR_DATA pLdr = nullptr;
+				PLIST_ENTRY pFirstEntry = nullptr;
+				PLIST_ENTRY pCurrentEntry = nullptr;
+				LDR_MODULE* pLdrModule = nullptr;
+
+				MINT::PROCESS_BASIC_INFORMATION pbi = {};
+				ULONG returnLength = 0;
+
+				__try
+				{
+					MINT::NTSTATUS status = MINT::NtQueryInformationProcess(
+						GetCurrentProcess(),
+						MINT::ProcessBasicInformation,
+						&pbi,
+						sizeof(pbi),
+						&returnLength
+					);
+
+					if (!NT_SUCCESS(status))
+					{
+						return false;
+					}
+
+					pLdr = reinterpret_cast<MINT::PPEB_LDR_DATA>(pbi.PebBaseAddress->Ldr);
+
+					if (pLdr == nullptr)
+					{
+						return false;
+					}
+
+					pFirstEntry = &pLdr->InLoadOrderModuleList;
+					pCurrentEntry = pFirstEntry->Flink;
+
+					do
+					{
+						pLdrModule = CONTAINING_RECORD(pCurrentEntry, LDR_MODULE, InLoadOrderModuleList);
+
+						if (pLdrModule->BaseAddress == hModule)
+						{
+							pLdrModule->InLoadOrderModuleList.Blink->Flink = pLdrModule->InLoadOrderModuleList.Flink;
+
+							pLdrModule->InLoadOrderModuleList.Flink->Blink = pLdrModule->InLoadOrderModuleList.Blink;
+
+							pLdrModule->InInitializationOrderModuleList.Blink->Flink = pLdrModule->InInitializationOrderModuleList.Flink;
+
+							pLdrModule->InInitializationOrderModuleList.Flink->Blink = pLdrModule->InInitializationOrderModuleList.Blink;
+
+							pLdrModule->InMemoryOrderModuleList.Blink->Flink = pLdrModule->InMemoryOrderModuleList.Flink;
+
+							pLdrModule->InMemoryOrderModuleList.Flink->Blink = pLdrModule->InMemoryOrderModuleList.Blink;
+
+							return true;
+
+						}
+
+						pCurrentEntry = pCurrentEntry->Flink;
+
+					} while (pFirstEntry != pCurrentEntry);
+				}
+				__except (EXCEPTION_EXECUTE_HANDLER)
+				{
+				}
+
+				return false;
+			};
+
+
+		hide(hModule);
 
 		DisableThreadLibraryCalls(hModule);
 	}

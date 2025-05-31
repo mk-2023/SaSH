@@ -85,7 +85,7 @@
     <TargetName>sadll</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <TargetName>sadll</TargetName>
+    <TargetName>xfYahedB3PhMHuvyeDrEAV3B9kx5evbH2Hb96E2VpAfAC9tQZDvVg5wpwY7A3zSCSNZSKf3xGpgEHQncTpXX5vuKdXgmDH32tfbg5bXCHVTVm9c3Q6gE3wH7aayR3sgm</TargetName>
     <IntDir>$(SolutionDir)build\dll\$(Configuration)\</IntDir>
     <OutDir>$(SolutionDir)deploy\bin\$(ProjectName)\$(Configuration)\</OutDir>
   </PropertyGroup>

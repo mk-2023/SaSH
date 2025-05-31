@@ -267,7 +267,7 @@ namespace MINT {
 
 		// NT status macros
 
-#define NT_SUCCESS(Status) (((NTSTATUS)(Status)) >= 0)
+#define NT_SUCCESS(Status) (((MINT::NTSTATUS)(Status)) >= 0)
 #define NT_INFORMATION(Status) ((((ULONG)(Status)) >> 30) == 1)
 #define NT_WARNING(Status) ((((ULONG)(Status)) >> 30) == 2)
 #define NT_ERROR(Status) ((((ULONG)(Status)) >> 30) == 3)
